@@ -26,7 +26,7 @@ import java.util.TimeZone;
 public class CloseVoiceIxn {
 
     private UniversalContactServerProtocol ucsProtocol;
-    private final String VERSION = "1.1";
+    private final String VERSION = "1.2";
     private boolean ucsConnected = false;
     private boolean useList = false;
     private boolean pause = true;
@@ -218,7 +218,7 @@ public class CloseVoiceIxn {
             result = true;
             System.out.println("Timestamp when record is processed.");
             mode = StopMode.NOW;
-        } else if (stoptime.matches("^(\\d\\d:\\d\\d:\\d\\d)")) {
+        } else if (stoptime.matches("([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]")) {
             result = true;
             System.out.println(String.format("Using absolute stoptime of %s on same day as interaction start.", stoptime));
             mode = StopMode.ABSOLUTE;
@@ -321,5 +321,6 @@ public class CloseVoiceIxn {
  * DATE         VERSION AUTHOR  NOTES
  * 09/12/2016   1.0     ARA     Initial version.  Created UCS-only version for specific voice needs.
  * 09/13/2016   1.1     ARA     Removed RequestStopInteraction and performed all functions in RequestUpdateInteraction
+ * 09/13/2016   1.2     ARA     Provided better date/time validation: ([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]
  *
 */
