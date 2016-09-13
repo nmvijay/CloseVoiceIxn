@@ -5,13 +5,13 @@ import com.genesyslab.platform.commons.protocol.Message;
 import com.genesyslab.platform.commons.protocol.ProtocolException;
 import com.genesyslab.platform.contacts.protocol.UniversalContactServerProtocol;
 import com.genesyslab.platform.contacts.protocol.contactserver.InteractionAttributes;
+import com.genesyslab.platform.contacts.protocol.contactserver.Statuses;
 import com.genesyslab.platform.contacts.protocol.contactserver.events.EventError;
 import com.genesyslab.platform.contacts.protocol.contactserver.events.EventGetInteractionContent;
-import com.genesyslab.platform.contacts.protocol.contactserver.events.EventStopInteraction;
 import com.genesyslab.platform.contacts.protocol.contactserver.events.EventUpdateInteraction;
 import com.genesyslab.platform.contacts.protocol.contactserver.requests.RequestGetInteractionContent;
-import com.genesyslab.platform.contacts.protocol.contactserver.requests.RequestStopInteraction;
 import com.genesyslab.platform.contacts.protocol.contactserver.requests.RequestUpdateInteraction;
+
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
@@ -26,7 +26,7 @@ import java.util.TimeZone;
 public class CloseVoiceIxn {
 
     private UniversalContactServerProtocol ucsProtocol;
-    private final String VERSION = "1.0";
+    private final String VERSION = "1.1";
     private boolean ucsConnected = false;
     private boolean useList = false;
     private boolean pause = true;
@@ -128,67 +128,46 @@ public class CloseVoiceIxn {
 
     private void closeIxn(String id) {
         if (checkId(id)) {
-            //First stop interaction, otherwise this would reset any custom date...
-            RequestStopInteraction reqStop = RequestStopInteraction.create();
-            reqStop.setDelete(delete);
-            reqStop.setInteractionId(id);
-            reqStop.setReason(reason);
-            reqStop.setTenantId(tenant);
-            try {
-                Message msgStop = ucsProtocol.request(reqStop);
-                System.out.print("Stopping: ");
-                if (msgStop instanceof EventStopInteraction) {
-                    System.out.print("OK");
-                } else if (msgStop instanceof EventError) {
-                    System.out.print("Error: " + ((EventError) msgStop).getErrorDescription());
-                } else {
-                    System.out.print("Unknown error: " + msgStop.messageName());
-                }
-            } catch (ProtocolException pe) {
-                System.out.println("Exception processing: " + pe.getMessage());
+            Date endDate = new Date();
+            switch (mode) {
+                case ABSOLUTE:
+                    endDate = setAbsoluteStop(getInteractionDate(id));
+                    System.out.print(" - End date: " + sdfMDY.format(endDate));
+                    break;
+                case RELATIVE:
+                    endDate = setRelativeStop(getInteractionDate(id));
+                    System.out.print(" - End date: " + sdfMDY.format(endDate));
+                    break;
+                default:
+                    break;
             }
-            //Next update the 'endDate'
-            if (!(mode == StopMode.NOW)) {
-                Date startDate = getInteractionDate(id);
-                Date endDate = new Date();
-                switch (mode) {
-                    case ABSOLUTE:
-                        endDate = setAbsoluteStop(startDate);
-                        System.out.print(" - End date: " + sdfMDY.format(endDate));
-                        break;
-                    case RELATIVE:
-                        endDate = setRelativeStop(startDate);
-                        System.out.print(" - End date: " + sdfMDY.format(endDate));
-                        break;
-                    default:
-                        break;
-                }
-                System.out.print(": Updating: ");
-                updateEndDate(id, endDate);
-            }
-
+            System.out.print(" Updating: ");
+            updateInteraction(id, endDate);
             System.out.println();
         }
     }
 
-    private void updateEndDate(String id, Date endDate) {
+    private void updateInteraction(String id, Date endDate) {
         InteractionAttributes attrs = new InteractionAttributes();
-        attrs.setEndDate(endDate);
+        if (StopMode.NOW != mode)
+            attrs.setEndDate(endDate);
         attrs.setTenantId(tenant);
         attrs.setId(id);
+        attrs.setStoppedReason(reason);
+        attrs.setStatus(Statuses.Stopped);
         RequestUpdateInteraction reqUpdate = RequestUpdateInteraction.create();
         reqUpdate.setInteractionAttributes(attrs);
         try {
             Message msgUpdate = ucsProtocol.request(reqUpdate, 5000);
             if (msgUpdate instanceof EventUpdateInteraction) {
-                System.out.print("OK)");
+                System.out.print("OK");
             } else if (msgUpdate instanceof EventError) {
-                System.out.print("Error updating: " + ((EventError) msgUpdate).getErrorDescription() + ")");
+                System.out.print("Error updating: " + ((EventError) msgUpdate).getErrorDescription());
             } else {
                 System.out.print("Unknown error: " + msgUpdate.messageName() + ")");
             }
         } catch (ProtocolException pe) {
-            System.out.print(": Unable to update end date)");
+            System.out.print(": Unable to update end date");
         }
 
     }
@@ -202,7 +181,7 @@ public class CloseVoiceIxn {
             if (msgContent instanceof EventGetInteractionContent) {
                 EventGetInteractionContent content = (EventGetInteractionContent)msgContent;
                 startDate = content.getInteractionAttributes().getStartDate();
-                System.out.print(" (Start Date: " + sdfMDY.format(startDate));
+                System.out.print(" Start Date: " + sdfMDY.format(startDate));
             } else if (msgContent instanceof EventError) {
                 System.out.print(" - GetDateError" + ((EventError) msgContent).getErrorDescription());
             } else {
@@ -255,15 +234,17 @@ public class CloseVoiceIxn {
     }
 
     private void processList() {
+        SimpleDateFormat sdfTimestamp = new SimpleDateFormat("HH:mm:ss.sss");
         String line;
         int lineNum = 1;
+
         try {
             FileReader fileReader = new FileReader(idList);
             BufferedReader reader = new BufferedReader(fileReader);
             System.out.println("Processing list: " + idList);
             System.out.println("===============================================================");
             while ((line = reader.readLine()) != null) {
-                System.out.print(String.format("%05d - %s: ",lineNum, line));
+                System.out.print(String.format("%s: %05d - %s:",sdfTimestamp.format(new Date()), lineNum, line));
                 closeIxn(line);
                 lineNum++;
             }
@@ -339,5 +320,6 @@ public class CloseVoiceIxn {
 /*
  * DATE         VERSION AUTHOR  NOTES
  * 09/12/2016   1.0     ARA     Initial version.  Created UCS-only version for specific voice needs.
+ * 09/13/2016   1.1     ARA     Removed RequestStopInteraction and performed all functions in RequestUpdateInteraction
  *
 */
