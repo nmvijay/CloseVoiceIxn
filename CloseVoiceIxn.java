@@ -315,7 +315,7 @@ public class CloseVoiceIxn {
                 "\t--tenant={tenant id} (default=101 for single-tenant environments)\n" +
                 "\t--reason={\"Text string\"}\n" +
                 "\t--stoptime={now (current timestamp) || nnn (number of seconds) || hh:mm:ss}\n" +
-                "\t--noconfirm {do not wait for user confirmation to continue.  Use with caution!" +
+                "\t--noconfirm {do not wait for user confirmation to continue.  Use with caution!\n" +
                 "\t--delete (If this flag is used, record will be deleted from Contact Server.  Use with caution!"
         );
         System.exit(0);
