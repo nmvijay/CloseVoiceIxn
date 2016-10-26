@@ -26,7 +26,7 @@ import java.util.TimeZone;
 public class CloseVoiceIxn {
 
     private UniversalContactServerProtocol ucsProtocol;
-    private final String VERSION = "1.2";
+    private final String VERSION = "1.3";
     private boolean ucsConnected = false;
     private boolean useList = false;
     private boolean pause = true;
@@ -93,7 +93,6 @@ public class CloseVoiceIxn {
                 "\tUCS Host: " + ucshost +
                 "\n\tUCS Port: " + ucsport +
                 "\n\tTenant ID: " + tenant +
-                "\n\tTest: " + test +
                 "\n\t" + (useList ? "ID List: " + idList : "ID: " + id) +
                 "\n\tReason Code: " + reason);
             if (options.has("stoptime")) {
@@ -128,22 +127,26 @@ public class CloseVoiceIxn {
 
     private void closeIxn(String id) {
         if (checkId(id)) {
-            Date endDate = new Date();
-            switch (mode) {
-                case ABSOLUTE:
-                    endDate = setAbsoluteStop(getInteractionDate(id));
-                    System.out.print(" - End date: " + sdfMDY.format(endDate));
-                    break;
-                case RELATIVE:
-                    endDate = setRelativeStop(getInteractionDate(id));
-                    System.out.print(" - End date: " + sdfMDY.format(endDate));
-                    break;
-                default:
-                    break;
+            try {
+                Date endDate = new Date();
+                switch (mode) {
+                    case ABSOLUTE:
+                        endDate = setAbsoluteStop(getInteractionDate(id));
+                        System.out.print(" - End date: " + sdfMDY.format(endDate));
+                        break;
+                    case RELATIVE:
+                        endDate = setRelativeStop(getInteractionDate(id));
+                        System.out.print(" - End date: " + sdfMDY.format(endDate));
+                        break;
+                    default:
+                        break;
+                }
+                System.out.print(" Updating: ");
+                updateInteraction(id, endDate);
+                System.out.println();
+            } catch (NullPointerException ne) {
+                System.out.println("Interaction not found!");
             }
-            System.out.print(" Updating: ");
-            updateInteraction(id, endDate);
-            System.out.println();
         }
     }
 
@@ -183,12 +186,14 @@ public class CloseVoiceIxn {
                 startDate = content.getInteractionAttributes().getStartDate();
                 System.out.print(" Start Date: " + sdfMDY.format(startDate));
             } else if (msgContent instanceof EventError) {
-                System.out.print(" - GetDateError" + ((EventError) msgContent).getErrorDescription());
+                System.out.print(" - GetDateError: " + ((EventError) msgContent).getErrorDescription()+ ": ");
             } else {
                 System.out.print(" - Error: " + msgContent.messageName());
             }
         } catch (ProtocolException pe) {
             System.out.print("Error getting interaction content");
+        } catch (Exception e) {
+            System.out.print("Unknown exception getting interaction content");
         }
         return startDate;
     }
@@ -319,8 +324,9 @@ public class CloseVoiceIxn {
 
 /*
  * DATE         VERSION AUTHOR  NOTES
- * 09/12/2016   1.0     ARA     Initial version.  Created UCS-only version for specific voice needs.
- * 09/13/2016   1.1     ARA     Removed RequestStopInteraction and performed all functions in RequestUpdateInteraction
- * 09/13/2016   1.2     ARA     Provided better date/time validation: ([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]
+ * 10/26/2016   1.03    ARA     Fixed a problem when interaction is not found in database
+ * 09/13/2016   1.02    ARA     Provided better date/time validation: ([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]
+ * 09/13/2016   1.01    ARA     Removed RequestStopInteraction and performed all functions in RequestUpdateInteraction
+ * 09/12/2016   1.00    ARA     Initial version.  Created UCS-only version for specific voice needs.
  *
 */
